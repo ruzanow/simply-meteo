@@ -6,19 +6,40 @@
 */
 
 #include <BME280I2C.h>
-#include <OLED_I2C.h>
+#include <U8g2lib.h>
 
 #define PLOT_LEN      96
 #define STORAGE_TIME  560
 
-OLED  myOLED(SDA, SCL, 8);
-BME280I2C bme;
+static const unsigned char BigNumbers[] PROGMEM =
+  "\20\1\4\4\5\5\1\1\6\24\30\1\377\26\0\26\0\0\0\0\0\2!*\32\16\347\316\30\62\42D"
+  "\30\21!\211\24\322\15\21,\23\201&\311\303\377\23\0+\64\25W\77\374\377WR\210\22\62f\304\230"
+  "!$h\222\42\211\210\21R\214\20\42$\210\10!A\244\22!J\210(\21\242\204\210\22!J\210("
+  "\21\242\304\3\3,\13\6g>\374\241 \61b\0-\16\16\347>\374CT\252\320\303\177\7\0.\13"
+  "\6g>\374\211\30\62\2\1/$\16\347\316\250@\42\304\10\22!D\224\10\351F\210\25\61N\204T"
+  "BD\10\22#BP\250\361\360\377\6\0\60<\16\347\212\232\20(\202\210\60!d\330\220aC\206\15"
+  "\31\66d\330\220aC\4\12\11\32\36D\320 \2\205\14\33\62l\310\260!\303\206\14\33\62l\210\10"
+  "\23BB\240\10\243\36\4\0\61\26\16\347>\330\300b\347c\321\341\1\7\26;\37\213\16\17\34\0\62"
+  "\37\16\347\212*\24\241L\210\235\217\5\241\10\243&\4\42\301c\347\255\10S!P\251\7\1\0\63\36"
+  "\16\347\212*\24\241L\210\235\217\5\241\10\243\12E`\261\363\225\11A(\302\250\7\1\0\64(\16\347"
+  ">\200\240A\4\12\31\66d\330\220aC\206\15\31\66d\330\20\201BB\240\10\243\12E`\261\363\261"
+  "\350\360\300\1\65\37\16\347\212\232\20\210D\230\32;o\5\207@\245\12E`\261\363\225\11A(\302\250"
+  "\7\1\0\66/\16\347\212\232\20\210D\230\32;o\5\207@\245&\4\212 \2\205\14\33\62l\310\260"
+  "!\303\206\14\33\62l\210\10\23BB\240\10\243\36\4\0\67\30\16\347\212*\24\241L\210\235\217E\207"
+  "\7\34X\354|,:<p\0\70>\16\347\212\232\20(\202\210\60!d\330\220aC\206\15\31\66d"
+  "\330\220aC\4\12\11\201\42\214\232\20(\202\10\24\62l\310\260!\303\206\14\33\62l\310\260!\42L"
+  "\10\11\201\42\214z\20\0\71.\16\347\212\232\20(\202\210\60!d\330\220aC\206\15\31\66d\330\220"
+  "aC\4\12\11\201\42\214*\24\201\305\316W&\4\241\10\243\36\4\0\0\0\0\4\377\377\0";
 
+
+//U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+//U8G2_HX1230_96X68_F_3W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 12, /* data=*/ 11, /* cs=*/ 10, /* reset=*/ 8);
+
+BME280I2C bme;
 // Temperature Oversampling Rate, Humidity Oversampling Rate, Pressure Oversampling Rate, Mode, Standby Time, Filter, SPI Enable, BME280 Address
 // BME280I2C bme(0x1, 0x1, 0x1, 0x1, 0x5, 0x0, false, 0x77); // Version for SparkFun BME280
 
-extern uint8_t BigNumbers[];
-extern uint8_t SmallFont[];
 
 struct {
   byte temp = 0;
@@ -34,7 +55,7 @@ struct {
 } avrg;
 
 byte wait_cnt = 0;
-byte shift_cnt = 0;
+byte move_cnt = 0;
 bool fastMode = true;
 
 // Prototypes
@@ -42,14 +63,14 @@ void drawCol(int x, int y, int yn);
 
 
 void setup() {
-  myOLED.begin();
+  u8g2.begin();
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   delay(100);
   digitalWrite(LED_BUILTIN, LOW);
 
   while (!bme.begin()) {
-    // If bme280 not found - blink LED 
+    // If bme280 not found - blink LED
     // Maybe you use BME280 from SparkFun with another address?
     delay(100);
     digitalWrite(LED_BUILTIN, HIGH);
@@ -62,34 +83,46 @@ void setup() {
 void loop() {
 
   float temp(NAN), hum(NAN), pres(NAN);
-  
-  bool metric = true;
-  uint8_t pressureUnit(0); // unit: B000 = Pa, B001 = hPa, B010 = Hg, B011 = atm, B100 = bar, B101 = torr, B110 = N/m^2, B111 = psi
+  BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+  BME280::PresUnit presUnit(BME280::PresUnit_torr);
 
-  bme.read(pres, temp, hum, metric, pressureUnit);
-  
-  /*
-   BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
-   BME280::PresUnit presUnit(BME280::PresUnit_Pa);
-
-   bme.read(pres, temp, hum, tempUnit, presUnit);
-  */
+  bme.read(pres, temp, hum, tempUnit, presUnit);
 
   // temp -= 0.3; // correct temp
-  pres /= 133.3; // convert to mmHg
-  
-  myOLED.setBrightness(10);
-  myOLED.clrScr();
-  myOLED.setFont(BigNumbers);
-  myOLED.printNumF(temp, 1, 0 + shift_cnt, 0 + shift_cnt);
-  myOLED.printNumI(round(hum), 89 + shift_cnt, 0 + shift_cnt);
-  myOLED.printNumF(pres, 1, 42 + shift_cnt, 37 + shift_cnt);
 
-  myOLED.setFont(SmallFont);
-  myOLED.print("~C", 56 + shift_cnt, 0 + shift_cnt);
-  myOLED.print("%", 119 + shift_cnt, 0 + shift_cnt);
-  myOLED.print("MM", 113 + shift_cnt, 54 + shift_cnt);
-  myOLED.update();
+  /*
+    bool metric = true;
+    uint8_t pressureUnit(0); // unit: B000 = Pa, B001 = hPa, B010 = Hg, B011 = atm, B100 = bar, B101 = torr, B110 = N/m^2, B111 = psi
+
+    bme.read(pres, temp, hum, metric, pressureUnit);
+
+    pres /= 133.3; // convert to mmHg
+
+     myOLED.printNumF(temp, 1, 0 + move_cnt, 0 + move_cnt);
+     myOLED.printNumI(round(hum), 89 + move_cnt, 0 + move_cnt);
+     myOLED.printNumF(pres, 1, 39 + move_cnt, 37 + move_cnt);
+  */
+
+ // brightness/contrast
+  u8g2.setContrast(32);
+  u8g2.setColorIndex(1);
+  u8g2.setFont(BigNumbers);
+  u8g2.firstPage();
+  do {
+
+    u8g2.setCursor(0 + move_cnt, 24 + move_cnt);
+    u8g2.print(temp, 1);
+    u8g2.print("*");
+
+    u8g2.setCursor(84 + move_cnt, 24 + move_cnt);
+    u8g2.print(round(hum));
+    u8g2.print("/");
+
+    u8g2.setCursor(42 + move_cnt, 61 + move_cnt);
+    u8g2.print(pres, 1);
+    u8g2.print("+");
+
+  } while ( u8g2.nextPage() );
 
   avrg.temp += temp;
   avrg.hum += hum;
@@ -130,9 +163,7 @@ void loop() {
 
   if (wait_cnt > 3) {
     wait_cnt = 0;
-    shift_cnt = (shift_cnt == 0) ? 3 : 0;
-    
-    myOLED.clrScr();
+    move_cnt = (move_cnt == 0) ? 3 : 0;
 
     byte minTemp = 255;
     byte minHum = 255;
@@ -152,43 +183,59 @@ void loop() {
       if (infoArr[i].hum > maxHum) maxHum = infoArr[i].hum;
       if (infoArr[i].pres > maxPres) maxPres = infoArr[i].pres;
     }
-    if (maxTemp - minTemp < 10) maxTemp = minTemp + 10;
-    if (maxHum - minHum < 10) maxHum = minHum + 10;
-    if (maxPres - minPres < 10) maxPres = minPres + 10;
 
+    u8g2.setFont(u8g2_font_profont12_mn);
+    u8g2.firstPage();
+    do {
+      u8g2.setCursor(0, 18);
+      u8g2.print(round((minTemp - 80) / 2.0));
+      u8g2.setCursor(0, 8);
+      u8g2.print(round((maxTemp - 80) / 2.0));
 
-    myOLED.setFont(SmallFont);
-    myOLED.printNumI(round((minTemp - 80) / 2.0), 0, 11);
-    myOLED.printNumI(round((maxTemp - 80) / 2.0), 0, 1);
+      u8g2.setCursor(0, 41);
+      u8g2.print(minHum);
+      u8g2.setCursor(0, 31);
+      u8g2.print(maxHum);
 
-    myOLED.printNumI(minHum, 0, 34);
-    myOLED.printNumI(maxHum, 0, 24);
-
-    myOLED.printNumI(round((minPres + 1380) / 2.0), 0, 57);
-    myOLED.printNumI(round((maxPres + 1380) / 2.0), 0, 47);
-
-    int z = 0;
-    int x = 25;
-    for (int i = 0; i < PLOT_LEN; i++) {
-      if (infoArr[i].temp == 0 && infoArr[i].hum == 0 && infoArr[i].pres == 0) continue;
+      u8g2.setCursor(0, 64);
+      u8g2.print(round((minPres + 1380) / 2.0));
+      u8g2.setCursor(0, 54);
+      u8g2.print(round((maxPres + 1380) / 2.0));
 
       /*
-        myOLED.drawLine(x, map(infoArr[i].temp, minTemp, maxTemp, 18, 0), x + 1, map(infoArr[i + 1].temp, minTemp, maxTemp, 18, 0));
-        myOLED.drawLine(x, map(infoArr[i].hum, minHum, maxHum, 40, 22), x + 1, map(infoArr[i + 1].hum, minHum, maxHum, 40, 22));
-        myOLED.drawLine(x, map(infoArr[i].pres, minPres, maxPres, 62, 44), x + 1, map(infoArr[i + 1].pres, minPres, maxPres, 62, 44));
+          if (maxTemp - minTemp < 10) maxTemp = minTemp + 10;
+          if (maxHum - minHum < 10) maxHum = minHum + 10;
+          if (maxPres - minPres < 10) maxPres = minPres + 10;
+
+          myOLED.setFont(SmallFont);
+          myOLED.printNumI(round((minTemp - 80) / 2.0), 0, 11);
+          myOLED.printNumI(round((maxTemp - 80) / 2.0), 0, 1);
+
+          myOLED.printNumI(minHum, 0, 34);
+          myOLED.printNumI(maxHum, 0, 24);
+
+          myOLED.printNumI(round((minPres + 1380) / 2.0), 0, 57);
+          myOLED.printNumI(round((maxPres + 1380) / 2.0), 0, 47);
       */
 
-      drawCol(x, map(infoArr[i].temp, minTemp, maxTemp, 17, 0), 17);
-      drawCol(x, map(infoArr[i].hum, minHum, maxHum, 40, 23), 40);
-      drawCol(x, map(infoArr[i].pres, minPres, maxPres, 63, 46), 63);
+      int z = 0;
+      int x = 25;
+      for (int i = 0; i < PLOT_LEN; i++) {
+        if (infoArr[i].temp == 0 && infoArr[i].hum == 0 && infoArr[i].pres == 0) continue;
 
-      z++;
-      if (z > 15) {z = 0; x++;}
-      
-      x++;
-    }
+        drawCol(x, map(infoArr[i].temp, minTemp, (maxTemp - minTemp < 10) ? minTemp + 10 : maxTemp, 17, 0), 17);
+        drawCol(x, map(infoArr[i].hum, minHum, (maxHum - minHum < 10) ? minHum + 10 : maxHum, 40, 23), 40);
+        drawCol(x, map(infoArr[i].pres, minPres, (maxPres - minPres < 10) ? minPres + 10 : maxPres, 63, 46), 63);
 
-    myOLED.update();
+        z++;
+        if (z > 15) {
+          z = 0;
+          x++;
+        }
+
+        x++;
+      }
+    } while ( u8g2.nextPage() );
 
     delay(2000);
   }
@@ -199,6 +246,6 @@ void loop() {
 
 void drawCol(int x, int y, int yn) {
   for (int i = y; i <= yn; i++) {
-    myOLED.setPixel(x, i);
+    u8g2.drawPixel(x, i);
   }
 }
