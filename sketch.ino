@@ -1,22 +1,22 @@
 /*
- Vin (Voltage In)    ->  3.3V
- Gnd (Ground)        ->  Gnd
- SDA (Serial Data)   ->  A4 on Uno/Pro-Mini
- SCK (Serial Clock)  ->  A5 on Uno/Pro-Mini
+  Vin (Voltage In)    ->  3.3V
+  Gnd (Ground)        ->  Gnd
+  SDA (Serial Data)   ->  A4 on Uno/Pro-Mini
+  SCK (Serial Clock)  ->  A5 on Uno/Pro-Mini
 */
 
 #include <BME280I2C.h>
 #include <OLED_I2C.h>
 
-#define PLOT_LEN      100
-#define STORAGE_TIME  270
+#define PLOT_LEN      96
+#define STORAGE_TIME  560
 
 OLED  myOLED(SDA, SCL, 8);
 BME280I2C bme;
 
 // Temperature Oversampling Rate, Humidity Oversampling Rate, Pressure Oversampling Rate, Mode, Standby Time, Filter, SPI Enable, BME280 Address
 // BME280I2C bme(0x1, 0x1, 0x1, 0x1, 0x5, 0x0, false, 0x77); // Version for SparkFun BME280
-  
+
 extern uint8_t BigNumbers[];
 extern uint8_t SmallFont[];
 
@@ -34,7 +34,12 @@ struct {
 } avrg;
 
 byte wait_cnt = 0;
+byte shift_cnt = 0;
 bool fastMode = true;
+
+// Prototypes
+void drawCol(int x, int y, int yn);
+
 
 void setup() {
   myOLED.begin();
@@ -44,35 +49,46 @@ void setup() {
   digitalWrite(LED_BUILTIN, LOW);
 
   while (!bme.begin()) {
-    // if bme280 not found - blink LED
-    delay(500);
+    // If bme280 not found - blink LED 
+    // Maybe you use BME280 from SparkFun with another address?
+    delay(100);
     digitalWrite(LED_BUILTIN, HIGH);
-    delay(500);
+    delay(100);
     digitalWrite(LED_BUILTIN, LOW);
   }
   delay(500);
 }
 
 void loop() {
-  bool metric = true;
+
   float temp(NAN), hum(NAN), pres(NAN);
+  
+  bool metric = true;
   uint8_t pressureUnit(0); // unit: B000 = Pa, B001 = hPa, B010 = Hg, B011 = atm, B100 = bar, B101 = torr, B110 = N/m^2, B111 = psi
 
   bme.read(pres, temp, hum, metric, pressureUnit);
-//  temp -= 0.3; // correct temp
-  pres /= 133.3; // convert to mmHg
+  
+  /*
+   BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+   BME280::PresUnit presUnit(BME280::PresUnit_Pa);
 
+   bme.read(pres, temp, hum, tempUnit, presUnit);
+  */
+
+  // temp -= 0.3; // correct temp
+  pres /= 133.3; // convert to mmHg
+  
   myOLED.setBrightness(10);
   myOLED.clrScr();
   myOLED.setFont(BigNumbers);
-  myOLED.print(String(temp, 1), 0, 0);
-  myOLED.print(String(hum, 0), 92, 0);
-  myOLED.print(String(pres, 1), 42, 40);
+  myOLED.printNumF(temp, 1, 0 + shift_cnt, 0 + shift_cnt);
+  myOLED.printNumI(round(hum), 89 + shift_cnt, 0 + shift_cnt);
+  myOLED.printNumF(pres, 1, 42 + shift_cnt, 37 + shift_cnt);
 
   myOLED.setFont(SmallFont);
-  myOLED.print("~C", 56, 0);
-  myOLED.print("%", 122, 0);
-  myOLED.print("MM", 114, 58);
+  myOLED.print("~C", 56 + shift_cnt, 0 + shift_cnt);
+  myOLED.print("%", 119 + shift_cnt, 0 + shift_cnt);
+  myOLED.print("MM", 113 + shift_cnt, 54 + shift_cnt);
   myOLED.update();
 
   avrg.temp += temp;
@@ -102,8 +118,8 @@ void loop() {
     for (int i = 1; i < PLOT_LEN; i++) {
       infoArr[i - 1] = infoArr[i];
     }
-    infoArr[PLOT_LEN - 1].temp = round(temp) + 50;
-    infoArr[PLOT_LEN - 1].pres = round(pres) - 650;
+    infoArr[PLOT_LEN - 1].temp = round(temp * 2) + 80;
+    infoArr[PLOT_LEN - 1].pres = round(pres * 2) - 1380;
     infoArr[PLOT_LEN - 1].hum = round(hum);
   }
   delay(1000);
@@ -114,6 +130,8 @@ void loop() {
 
   if (wait_cnt > 3) {
     wait_cnt = 0;
+    shift_cnt = (shift_cnt == 0) ? 3 : 0;
+    
     myOLED.clrScr();
 
     byte minTemp = 255;
@@ -140,23 +158,33 @@ void loop() {
 
 
     myOLED.setFont(SmallFont);
-    myOLED.print(String(minTemp - 50), 0, 12);
-    myOLED.print(String(maxTemp - 50), 0, 2);
+    myOLED.printNumI(round((minTemp - 80) / 2.0), 0, 11);
+    myOLED.printNumI(round((maxTemp - 80) / 2.0), 0, 1);
 
-    myOLED.print(String(minHum), 0, 34);
-    myOLED.print(String(maxHum), 0, 24);
+    myOLED.printNumI(minHum, 0, 34);
+    myOLED.printNumI(maxHum, 0, 24);
 
-    myOLED.print(String(minPres + 650), 0, 56);
-    myOLED.print(String(maxPres + 650), 0, 46);
+    myOLED.printNumI(round((minPres + 1380) / 2.0), 0, 57);
+    myOLED.printNumI(round((maxPres + 1380) / 2.0), 0, 47);
 
-    int x = 24;
-    for (int i = 0; i < PLOT_LEN - 1; i++) {
+    int z = 0;
+    int x = 25;
+    for (int i = 0; i < PLOT_LEN; i++) {
       if (infoArr[i].temp == 0 && infoArr[i].hum == 0 && infoArr[i].pres == 0) continue;
 
-      myOLED.drawLine(x, map(infoArr[i].temp, minTemp, maxTemp, 18, 0), x + 1, map(infoArr[i + 1].temp, minTemp, maxTemp, 18, 0));
-      myOLED.drawLine(x, map(infoArr[i].hum, minHum, maxHum, 40, 22), x + 1, map(infoArr[i + 1].hum, minHum, maxHum, 40, 22));
-      myOLED.drawLine(x, map(infoArr[i].pres, minPres, maxPres, 62, 44), x + 1, map(infoArr[i + 1].pres, minPres, maxPres, 62, 44));
+      /*
+        myOLED.drawLine(x, map(infoArr[i].temp, minTemp, maxTemp, 18, 0), x + 1, map(infoArr[i + 1].temp, minTemp, maxTemp, 18, 0));
+        myOLED.drawLine(x, map(infoArr[i].hum, minHum, maxHum, 40, 22), x + 1, map(infoArr[i + 1].hum, minHum, maxHum, 40, 22));
+        myOLED.drawLine(x, map(infoArr[i].pres, minPres, maxPres, 62, 44), x + 1, map(infoArr[i + 1].pres, minPres, maxPres, 62, 44));
+      */
 
+      drawCol(x, map(infoArr[i].temp, minTemp, maxTemp, 17, 0), 17);
+      drawCol(x, map(infoArr[i].hum, minHum, maxHum, 40, 23), 40);
+      drawCol(x, map(infoArr[i].pres, minPres, maxPres, 63, 46), 63);
+
+      z++;
+      if (z > 15) {z = 0; x++;}
+      
       x++;
     }
 
@@ -167,4 +195,10 @@ void loop() {
 
   wait_cnt++;
 
+}
+
+void drawCol(int x, int y, int yn) {
+  for (int i = y; i <= yn; i++) {
+    myOLED.setPixel(x, i);
+  }
 }
