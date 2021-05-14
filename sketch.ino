@@ -4,7 +4,7 @@
   SDA (Serial Data)   ->  A4 on Uno/Pro-Mini
   SCK (Serial Clock)  ->  A5 on Uno/Pro-Mini
 */
-
+#include <Wire.h>
 #include <BME280I2C.h>
 #include <U8g2lib.h>
 
@@ -71,6 +71,7 @@ void setup() {
   delay(100);
   digitalWrite(LED_BUILTIN, LOW);
 
+  Wire.begin();
   while (!bme.begin()) {
     // If bme280 not found - blink LED
     // Maybe you use BME280 from SparkFun with another address?
@@ -90,7 +91,7 @@ void loop() {
 
   bme.read(pres, temp, hum, tempUnit, presUnit);
 
-  temp -= 0.5; // correct temp
+  //temp -= 0.5; // correct temp
 
   /*
     bool metric = true;
