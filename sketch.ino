@@ -4,6 +4,7 @@
   SDA (Serial Data)   ->  A4 on Uno/Pro-Mini
   SCK (Serial Clock)  ->  A5 on Uno/Pro-Mini
 */
+#include "LowPower.h"
 #include <Wire.h>
 #include <BME280I2C.h>
 #include <U8g2lib.h>
@@ -34,7 +35,7 @@ static const unsigned char BigNumbers[] PROGMEM =
   "\377\0";
 
 
-U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 //U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 //U8G2_HX1230_96X68_F_3W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 12, /* data=*/ 11, /* cs=*/ 10, /* reset=*/ 8);
 
