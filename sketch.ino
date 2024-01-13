@@ -106,6 +106,21 @@ void loop() {
      myOLED.printNumF(pres, 1, 39 + move_cnt, 37 + move_cnt);
   */
 
+  // arrows
+  int8_t presChanged = 0;
+  int normPres = round(pres * 2) - 1380;
+  for (int i = PLOT_LEN - 1; i >= 0 ; i--) {
+    if (infoArr[i].temp == 0 && infoArr[i].hum == 0 && infoArr[i].pres == 0) continue;
+    if (normPres > infoArr[i].pres + 8) {
+      presChanged = 1;
+      break;
+    }
+    if (normPres < infoArr[i].pres - 8) {
+      presChanged = -1;
+      break;
+    }
+  }
+
   u8g2.setContrast(32);
   u8g2.clearBuffer();
   u8g2.firstPage();
@@ -123,20 +138,9 @@ void loop() {
     u8g2.print(pres, 1);
     u8g2.print("+");
 
-    // arrows
-    int normPres = round(pres * 2) - 1380;
-    for (int i = PLOT_LEN - 1; i >= 0 ; i--) {
-      if (infoArr[i].temp == 0 && infoArr[i].hum == 0 && infoArr[i].pres == 0) continue;
-      if (normPres > infoArr[i].pres + 8) {
-        u8g2.setCursor(28 + move_cnt, 61 + move_cnt);
-        u8g2.print(")");
-        break;
-      }
-      if (normPres < infoArr[i].pres - 8) {
-        u8g2.setCursor(28 + move_cnt, 61 + move_cnt);
-        u8g2.print("(");
-        break;
-      }
+    if (presChanged) {
+      u8g2.setCursor(28 + move_cnt, 61 + move_cnt);
+      u8g2.print(presChanged == 1 ? ")" : "(");
     }
     
   } while ( u8g2.nextPage() );
@@ -172,7 +176,8 @@ void loop() {
     infoArr[PLOT_LEN - 1].pres = round(pres * 2) - 1380;
     infoArr[PLOT_LEN - 1].hum = round(hum);
   }
-  delay(1000);
+  //delay(1000);
+  LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
 
   /*
     Graph
@@ -255,7 +260,8 @@ void loop() {
       }
     } while ( u8g2.nextPage() );
 
-    delay(2000);
+    //delay(2000);
+    LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
   }
 
   wait_cnt++;
@@ -263,7 +269,10 @@ void loop() {
 }
 
 void drawCol(int x, int y, int yn) {
+  u8g2.drawVLine(x, y, yn-y+1);
+/*
   for (int i = y; i <= yn; i++) {
     u8g2.drawPixel(x, i);
   }
+*/
 }
