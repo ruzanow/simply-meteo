@@ -67,6 +67,7 @@ void drawCol(int x, int y, int yn);
 
 void setup() {
   u8g2.begin();
+  u8g2.setContrast(32);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   delay(100);
@@ -122,11 +123,10 @@ void loop() {
     }
   }
 
-  u8g2.setContrast(32);
   u8g2.clearBuffer();
+  u8g2.setFont(BigNumbers);
   u8g2.firstPage();
   do {
-    u8g2.setFont(BigNumbers);
     u8g2.setCursor(0 + move_cnt, 24 + move_cnt);
     u8g2.print(temp, 1);
     u8g2.print("*");
@@ -208,9 +208,9 @@ void loop() {
     }
 
     u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_profont12_mn);
     u8g2.firstPage();
     do {
-      u8g2.setFont(u8g2_font_profont12_mn);
       u8g2.setCursor(0, 18);
       u8g2.print(round((minTemp - 80) / 2.0));
       u8g2.setCursor(0, 8);
