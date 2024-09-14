@@ -10,7 +10,7 @@
 #include <U8g2lib.h>
 
 #define PLOT_LEN      96
-#define STORAGE_TIME  560
+#define STORAGE_TIME  480
 
 static const unsigned char BigNumbers[] PROGMEM =
   "\22\1\4\4\5\5\1\1\6\24\30\1\377\26\0\15\0\0\0\0\0\2F(\22\16\347>\374\333\371\335"
